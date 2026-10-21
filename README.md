@@ -15,17 +15,36 @@ exponované soubory, e-mailové DNS záznamy a blacklisty.
 | **E-mail (DNS)** | MX (CNAME, IP, null MX), SPF (rekurzivně, počet lookupů, void lookup, +all/?all, ptr), DMARC (policy, pct, rua, autorizace externích rua), DKIM (běžné selektory + vlastní), MTA-STS (včetně policy souboru a pokrytí MX), TLS-RPT, BIMI |
 | **Reputace** | IP webu a MX serverů na DNSBL (Spamhaus, SpamCop, PSBL, Mailspike, NiX Spam, s5h, UCEPROTECT), doména na DBL/SURBL/URIBL |
 
+## Volitelná pole
+
+- **Origin IP** — SSL/TLS modul se připojí přímo na tuto IP se SNI domény. Hodí se u domén
+  za Cloudflare proxy: ukáže certifikát originu (ten, který Cloudflare ověřuje v režimu Full (strict)).
+- **DKIM selektor** — zkusí se jako první před běžnými selektory.
+
+## Spamhaus DQS
+
+Spamhaus odmítá dotazy z veřejných resolverů. S bezplatným klíčem
+z [Data Query Service](https://www.spamhaus.com/free-trial/sign-up-for-a-free-data-query-service-account/)
+se dotazuje přes `<klíč>.zen.dq.spamhaus.net` a funguje to. Klíč se nastaví jako secret:
+
+```
+npx wrangler secret put SPAMHAUS_DQS_KEY
+```
+
+(nebo v Cloudflare dashboardu: Worker → Settings → Variables and Secrets).
+
 ## Omezení
 
 - Workers se nesmí přímo připojit na IP adresy Cloudflare → u domén za Cloudflare proxy
-  se certifikát ověří jen přes HTTPS a nameservery Cloudflare se nedotazují přímo.
+  se certifikát ověří jen přes HTTPS (nebo přes pole Origin IP) a nameservery Cloudflare
+  se nedotazují přímo.
 - Server jen s TLS 1.3 posílá certifikát šifrovaně → řetězec nejde vyčíst.
-- Spamhaus, SURBL a URIBL odmítají dotazy z veřejných resolverů → hlásí se jako „nelze ověřit“.
+- SURBL a URIBL (a Spamhaus bez DQS klíče) odmítají dotazy z veřejných resolverů → hlásí se jako „nelze ověřit“.
 - Každý modul je samostatný požadavek (Free plán: 50 subrequestů na požadavek).
 
 ## API
 
-`GET /api/check/{dns|ssl|http|content|exposed|email|reputation}?domain=example.cz[&dkim=selektor]`
+`GET /api/check/{dns|ssl|http|content|exposed|email|reputation}?domain=example.cz[&dkim=selektor][&origin=IP]`
 
 ## Vývoj
 

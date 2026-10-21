@@ -22,7 +22,11 @@
     </div>
     <div class="scan-opts">
       <p id="scan-hint">DNS, certifikát, HTTP, obsah, exponované soubory, e-mail a blacklisty.</p>
-      <label class="dkim">DKIM selektor <input id="dkim" name="dkim" type="text" spellcheck="false" placeholder="volitelné"></label>
+      <div class="opt-fields">
+        <label class="dkim">Origin IP <input id="origin" name="origin" type="text" inputmode="decimal" spellcheck="false" placeholder="volitelné"
+               title="Certifikát a TLS se otestují přímo na této IP (SNI = doména). Hodí se u domén za Cloudflare."></label>
+        <label class="dkim">DKIM selektor <input id="dkim" name="dkim" type="text" spellcheck="false" placeholder="volitelné"></label>
+      </div>
     </div>
   </form>
 

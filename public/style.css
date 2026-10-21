@@ -65,6 +65,7 @@ button, input { font: inherit; color: inherit; }
 #run:disabled { opacity: .55; cursor: progress; }
 .scan-opts { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: center; margin-top: 10px; color: var(--muted); font-size: 14px; }
 .scan-opts p { margin: 0; }
+.opt-fields { display: flex; gap: 16px; flex-wrap: wrap; }
 .dkim { display: inline-flex; align-items: center; gap: 8px; }
 .dkim input {
   width: 130px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px;

@@ -9,7 +9,7 @@ const spamhausRefused = (ip: string) => /^127\.255\.255\.\d+$/.test(ip);
 // SURBL / URIBL answer 127.0.0.1 when the querying resolver is blocked.
 const uriRefused = (ip: string) => ip === "127.0.0.1";
 
-const IP_LISTS: List[] = [
+const IP_LISTS_BASE: List[] = [
   { zone: "zen.spamhaus.org", name: "Spamhaus ZEN", refused: spamhausRefused },
   { zone: "bl.spamcop.net", name: "SpamCop" },
   { zone: "psbl.surriel.com", name: "PSBL" },
@@ -19,7 +19,7 @@ const IP_LISTS: List[] = [
   { zone: "dnsbl-1.uceprotect.net", name: "UCEPROTECT L1", weak: true },
 ];
 
-const DOMAIN_LISTS: List[] = [
+const DOMAIN_LISTS_BASE: List[] = [
   { zone: "dbl.spamhaus.org", name: "Spamhaus DBL", refused: spamhausRefused },
   { zone: "multi.surbl.org", name: "SURBL", refused: uriRefused },
   { zone: "multi.uribl.com", name: "URIBL", refused: uriRefused },
@@ -37,9 +37,19 @@ async function query(ctx: Ctx, name: string, list: List): Promise<{ v: Verdict; 
   return { v: "listed", codes };
 }
 
+// With a DQS key Spamhaus answers through any resolver: <query>.<key>.zen.dq.spamhaus.net
+function withDqs(lists: List[], key?: string): List[] {
+  if (!key) return lists;
+  return lists.map((l) => l.zone.endsWith(".spamhaus.org")
+    ? { ...l, zone: `${key}.${l.zone.replace(/\.spamhaus\.org$/, "")}.dq.spamhaus.net`, name: `${l.name} (DQS)` }
+    : l);
+}
+
 export async function checkReputation(ctx: Ctx): Promise<Check[]> {
   const out: Check[] = [];
   const { dns, domain, zone } = ctx;
+  const IP_LISTS = withDqs(IP_LISTS_BASE, ctx.dqsKey);
+  const DOMAIN_LISTS = withDqs(DOMAIN_LISTS_BASE, ctx.dqsKey);
 
   // IPs worth checking: the web server and the mail servers.
   const webIps = (await dns.records(domain, "A")).filter(isIPv4).slice(0, 2);
@@ -58,7 +68,7 @@ export async function checkReputation(ctx: Ctx): Promise<Check[]> {
       strong.length ? "fail" : listed.length ? "warn" : "ok",
       listed.length ? `na blacklistu: ${listed.map((r) => r.l.name).join(", ")}` : `čistá (${res.length - unknown.length}/${res.length} seznamů ověřeno)`,
       [listed.some((r) => r.l.weak) && "UCEPROTECT L1 je agresivní seznam, většina poskytovatelů ho nepoužívá.",
-        unknown.length && `Neověřeno: ${unknown.map((r) => r.l.name).join(", ")} (blokuje dotazy z veřejných resolverů).`]
+        unknown.length && `Neověřeno: ${unknown.map((r) => r.l.name).join(", ")} (blokuje dotazy z veřejných resolverů${!ctx.dqsKey && unknown.some((r) => r.l.zone.includes("spamhaus")) ? " — pro Spamhaus nastav DQS klíč" : ""}).`]
         .filter(Boolean).join(" ") || undefined,
       res.map((r) => `${r.l.name.padEnd(14)} ${r.v === "listed" ? "LISTED " + r.codes.join(",") : r.v === "clean" ? "ok" : "nelze ověřit"}`));
   }

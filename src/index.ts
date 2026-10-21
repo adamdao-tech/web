@@ -10,13 +10,13 @@ import { checkExposed } from "./checks/exposed";
 import { checkEmail } from "./checks/email";
 import { checkReputation } from "./checks/reputation";
 
-interface Env { ASSETS: Fetcher }
+interface Env { ASSETS: Fetcher; SPAMHAUS_DQS_KEY?: string }
 
 // Each module runs in its own request: the free plan allows 50 subrequests per
 // invocation, and splitting keeps every module comfortably below that.
 const MODULES: Record<string, { title: string; run: (ctx: Ctx, url: URL) => Promise<Check[]> }> = {
   dns: { title: "DNS", run: (c) => checkDns(c) },
-  ssl: { title: "SSL/TLS", run: (c) => checkSsl(c) },
+  ssl: { title: "SSL/TLS", run: (c, u) => checkSsl(c, u.searchParams.get("origin")?.trim() || undefined) },
   http: { title: "HTTP", run: (c) => checkHttp(c) },
   content: { title: "Obsah a technologie", run: (c) => checkContent(c) },
   exposed: { title: "Exponované soubory", run: (c) => checkExposed(c) },
@@ -49,7 +49,8 @@ export default {
       const t0 = Date.now();
       try {
         const zone = await findZone(dns, domain);
-        const ctx: Ctx = { domain, zone, base: domain.replace(/^www\./, ""), dns };
+        const dqsKey = env.SPAMHAUS_DQS_KEY?.trim() || undefined;
+        const ctx: Ctx = { domain, zone, base: domain.replace(/^www\./, ""), dns, dqsKey };
         const checks = await mod.run(ctx, url);
         const result: ModuleResult = { module: m[1], title: mod.title, domain, durationMs: Date.now() - t0, checks };
         return json(result);

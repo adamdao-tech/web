@@ -12,7 +12,7 @@
   const ORDER = ["fail", "warn", "ok", "info", "skip"];
 
   const $ = (s) => document.querySelector(s);
-  const form = $("#form"), input = $("#domain"), dkim = $("#dkim"), runBtn = $("#run");
+  const form = $("#form"), input = $("#domain"), dkim = $("#dkim"), origin = $("#origin"), runBtn = $("#run");
   const modulesEl = $("#modules"), matrixEl = $("#matrix"), summaryEl = $("#summary");
   const totalsEl = $("#totals"), targetEl = $("#target"), emptyEl = $("#empty");
   const results = {};
@@ -38,12 +38,13 @@
     input.value = d;
     const q = new URLSearchParams({ d });
     if (dkim.value.trim()) q.set("dkim", dkim.value.trim());
+    if (origin.value.trim()) q.set("origin", origin.value.trim());
     history.replaceState(null, "", "?" + q);
-    run(d, dkim.value.trim());
+    run(d, dkim.value.trim(), origin.value.trim());
   });
   input.addEventListener("input", () => input.setCustomValidity(""));
 
-  function run(domain, selector) {
+  function run(domain, selector, originIp) {
     const id = ++runId;
     for (const k in results) delete results[k];
     emptyEl.hidden = true;
@@ -68,6 +69,7 @@
     for (const [m, title] of MODULES) {
       const q = new URLSearchParams({ domain });
       if (m === "email" && selector) q.set("dkim", selector);
+      if (m === "ssl" && originIp) q.set("origin", originIp);
       fetch(`/api/check/${m}?${q}`)
         .then(async (r) => {
           const j = await r.json().catch(() => null);
@@ -160,5 +162,6 @@
   const params = new URLSearchParams(location.search);
   const d0 = normalize(params.get("d") || "");
   if (params.get("dkim")) dkim.value = params.get("dkim");
-  if (d0) { input.value = d0; run(d0, dkim.value.trim()); } else { input.focus(); }
+  if (params.get("origin")) origin.value = params.get("origin");
+  if (d0) { input.value = d0; run(d0, dkim.value.trim(), origin.value.trim()); } else { input.focus(); }
 })();

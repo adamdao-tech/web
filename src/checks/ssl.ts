@@ -23,27 +23,53 @@ const CA_DOMAINS: [RegExp, string[]][] = [
   [/microsoft/i, ["microsoft.com"]],
 ];
 
-export async function checkSsl(ctx: Ctx): Promise<Check[]> {
+const PRIVATE = /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/;
+
+export async function checkSsl(ctx: Ctx, originIp?: string): Promise<Check[]> {
   const out: Check[] = [];
   const { domain, base, dns } = ctx;
 
-  const ips = await dns.records(domain, "A");
-  const behindCf = ips.length > 0 && ips.every(isCloudflareIp);
-  if (behindCf) return cloudflareFallback(out, domain, ips);
+  // Optional: test the origin server directly (SNI = domain), e.g. behind Cloudflare.
+  let target = domain;
+  if (originIp) {
+    const valid = /^\d{1,3}(\.\d{1,3}){3}$/.test(originIp) && originIp.split(".").every((o) => Number(o) <= 255);
+    if (!valid || PRIVATE.test(originIp)) {
+      add(out, "ssl.origin", "Origin IP", "warn", `„${originIp}“ není veřejná IPv4 adresa — testuji doménu`);
+    } else if (isCloudflareIp(originIp)) {
+      add(out, "ssl.origin", "Origin IP", "warn", `${originIp} je Cloudflare IP, ne origin — testuji doménu`);
+    } else {
+      target = originIp;
+      add(out, "ssl.origin", "Cíl testu", "info", `origin ${originIp} (SNI ${domain})`,
+        "Certifikát a TLS se testují přímo na originu, ne na adrese z DNS. U domény za Cloudflare je to certifikát, který Cloudflare vidí při režimu Full (strict).");
+    }
+  }
+
+  if (target === domain) {
+    const ips = await dns.records(domain, "A");
+    const behindCf = ips.length > 0 && ips.every(isCloudflareIp);
+    if (behindCf) return cloudflareFallback(out, domain, ips);
+  }
 
   const [p12, p13, p11, p10] = await Promise.all([
-    probeTls(domain, domain, TLS12),
-    probeTls(domain, domain, TLS13),
-    probeTls(domain, domain, TLS11),
-    probeTls(domain, domain, TLS10),
+    probeTls(target, domain, TLS12),
+    probeTls(target, domain, TLS13),
+    probeTls(target, domain, TLS11),
+    probeTls(target, domain, TLS10),
   ]);
+
+  if (target !== domain && !p12.ok && !p13.ok && p12.error) {
+    add(out, "ssl.chain", "Certifikát", "fail", `origin ${target}:443 nedostupný (${p12.error})`,
+      "Origin často povoluje port 443 jen z IP adres Cloudflare — pak ho odsud nejde otestovat.");
+    versionsCheck(out, [p10, p11, p12, p13]);
+    return out;
+  }
 
   // ---- Could we read the chain at all? -------------------------------------
   if (!p12.certs.length) {
     const reason = p12.error ?? p12.alert ?? "server neposlal certifikát";
     // Fall back to a plain HTTPS request: tells us at least whether the cert validates.
-    let fetchVerdict: { ok: boolean; msg: string };
-    try {
+    let fetchVerdict: { ok: boolean; msg: string } = { ok: true, msg: "origin odpovídá, certifikát nelze vyčíst" };
+    if (target === domain) try {
       const r = await timedFetch(`https://${domain}/`, { redirect: "manual", method: "HEAD" });
       fetchVerdict = { ok: true, msg: `HTTPS odpovídá (${r.status}), certifikát přijat` };
     } catch (e) {
@@ -180,7 +206,7 @@ async function cloudflareFallback(out: Check[], domain: string, ips: string[]): 
   try {
     const r = await timedFetch(`https://${domain}/`, { redirect: "manual", method: "HEAD" });
     add(out, "ssl.chain", "Certifikát", "ok", `platný (HTTPS odpovídá ${r.status})`,
-      "Doména je za Cloudflare proxy — návštěvníci vidí certifikát Cloudflare (Universal/Advanced SSL), ne certifikát originu. Řetězec a verze TLS z Workeru nejde přímo vyčíst.",
+      "Doména je za Cloudflare proxy — návštěvníci vidí certifikát Cloudflare (Universal/Advanced SSL). Řetězec a verze TLS z Workeru nejde přímo vyčíst. Pro kontrolu certifikátu originu vyplň pole Origin IP.",
       ips.map((ip) => `A ${ip}  (Cloudflare)`));
   } catch (e) {
     add(out, "ssl.chain", "Certifikát", "fail", `HTTPS selhalo: ${(e as Error).message}`,

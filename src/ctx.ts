@@ -8,4 +8,6 @@ export interface Ctx {
   /** hostname without a leading www. */
   base: string;
   dns: Dns;
+  /** Spamhaus Data Query Service key (Worker secret SPAMHAUS_DQS_KEY) */
+  dqsKey?: string;
 }
