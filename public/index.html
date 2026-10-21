@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webcheck</title>
+<meta name="description" content="Kontrola domény: DNS, certifikát, HTTP hlavičky, obsah, exponované soubory, e-mailové záznamy a blacklisty.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='3' width='3' height='10' fill='%232f8f5b'/><rect x='6.5' y='3' width='3' height='10' fill='%23c98a0a'/><rect x='12' y='3' width='3' height='10' fill='%23c8372d'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wrap">
+  <form id="form" class="scan" autocomplete="off">
+    <label for="domain" class="scan-label">Kontrola domény</label>
+    <div class="scan-row">
+      <input id="domain" name="domain" type="text" inputmode="url" spellcheck="false"
+             placeholder="example.cz" aria-describedby="scan-hint" required>
+      <button type="submit" id="run">Zkontrolovat</button>
+    </div>
+    <div class="scan-opts">
+      <p id="scan-hint">DNS, certifikát, HTTP, obsah, exponované soubory, e-mail a blacklisty.</p>
+      <label class="dkim">DKIM selektor <input id="dkim" name="dkim" type="text" spellcheck="false" placeholder="volitelné"></label>
+    </div>
+  </form>
+
+  <section id="summary" class="summary" hidden aria-label="Souhrn">
+    <div class="summary-head">
+      <h1 id="target"></h1>
+      <div class="totals" id="totals"></div>
+      <label class="only-issues"><input type="checkbox" id="onlyIssues"> Jen problémy</label>
+    </div>
+    <div class="matrix" id="matrix"></div>
+  </section>
+
+  <div id="modules"></div>
+
+  <p class="empty" id="empty">Zadej doménu nebo URL. Kontroly běží z Cloudflare edge a trvají pár sekund.</p>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
